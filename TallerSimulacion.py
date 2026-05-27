@@ -43,6 +43,11 @@ arrastrando_disparo = False
 
 pos_mouse_disparo = pygame.Vector2(PUNTO_LANZAMIENTO)
 
+#para generar la estructura
+FUENTE = pygame.font.SysFont(None, 24)
+
+BOTON_T_INVERTIDA = pygame.Rect(20, 20, 230, 35)
+
 '''class Particula:
     def __init__(self,x,y):
         self.pos = pygame.Vector2(x,y)
@@ -134,6 +139,253 @@ class Proyectil:
             pygame.draw.circle(pantalla, ROJO, self.pos, self.radio)
 
 
+#funcion generada con Copilot
+def crear_estructura_t_invertida():
+    # Limpiamos la escena actual
+    particulas.clear()
+    ligaduras.clear()
+    proyectiles.clear()
+
+    # Diccionario para no crear partículas repetidas
+    puntos = {}
+    # Un diccionario en Python (dict) es la implementación 
+    # nativa del lenguaje de las tablas hash 
+    
+    # Conjunto para no repetir ligaduras
+    ligaduras_creadas = set()
+
+    def crear_punto(x, y, fija=False):
+        x = int(round(x))
+        y = int(round(y))
+
+        clave = (x, y)
+
+        if clave in puntos:
+            if fija:
+                puntos[clave].fija = True
+            return puntos[clave]
+
+        p = Particula(x, y, fija)
+        particulas.append(p)
+        puntos[clave] = p
+        return p
+
+    def unir(p1, p2):
+        if p1 == p2:
+            return
+
+        clave = tuple(sorted((id(p1), id(p2))))
+
+        if clave not in ligaduras_creadas:
+            ligaduras.append(Ligadura(p1, p2))
+            ligaduras_creadas.add(clave)
+
+    def crear_bloque(x, y, ancho, alto):
+        """
+        Crea un bloque rectangular usando 4 partículas
+        y varias ligaduras.
+
+        x, y representan la esquina superior izquierda.
+        """
+
+        arriba_izq = crear_punto(x, y)
+        arriba_der = crear_punto(x + ancho, y)
+        abajo_izq = crear_punto(x, y + alto)
+        abajo_der = crear_punto(x + ancho, y + alto)
+
+        # Bordes del bloque
+        unir(arriba_izq, arriba_der)
+        unir(abajo_izq, abajo_der)
+        unir(arriba_izq, abajo_izq)
+        unir(arriba_der, abajo_der)
+
+        # Diagonales internas para que el bloque tenga rigidez
+        unir(arriba_izq, abajo_der)
+        unir(arriba_der, abajo_izq)
+
+        return {
+            "arriba_izq": arriba_izq,
+            "arriba_der": arriba_der,
+            "abajo_izq": abajo_izq,
+            "abajo_der": abajo_der
+        }
+
+    # ==============================
+    # Medidas principales
+    # ==============================
+    x_centro = 520
+
+    y_suelo = 540
+    y_plataforma = 455
+
+    ancho_bloque = 75
+    alto_bloque = 65
+    espacio = 8
+
+    # ==============================
+    # 1. Soportes inferiores
+    # Solo las partículas de abajo son fijas
+    # ==============================
+
+    x_soportes = [
+        x_centro - 170,
+        x_centro - 65,
+        x_centro + 65,
+        x_centro + 170
+    ]
+
+    puntos_superiores_soportes = []
+
+    for x in x_soportes:
+        abajo = crear_punto(x, y_suelo, fija=True)
+        arriba = crear_punto(x, y_plataforma, fija=False)
+
+        unir(abajo, arriba)
+
+        puntos_superiores_soportes.append(arriba)
+
+    # ==============================
+    # 2. Plataforma horizontal
+    # Como la madera de abajo en Angry Birds
+    # ==============================
+
+    x_inicio_plataforma = x_centro - 220
+    x_fin_plataforma = x_centro + 220
+
+    plataforma_izq = crear_punto(x_inicio_plataforma, y_plataforma)
+    plataforma_der = crear_punto(x_fin_plataforma, y_plataforma)
+
+    unir(plataforma_izq, plataforma_der)
+
+    # Unimos los soportes con la plataforma
+    for p in puntos_superiores_soportes:
+        unir(plataforma_izq, p)
+        unir(p, plataforma_der)
+
+    # ==============================
+    # 3. Primera fila de bloques
+    # Tres bloques abajo
+    # ==============================
+
+    y_fila1 = y_plataforma - alto_bloque
+
+    ancho_total_fila1 = 3 * ancho_bloque + 2 * espacio
+    x_fila1 = x_centro - ancho_total_fila1 / 2
+
+    bloque1 = crear_bloque(
+        x_fila1,
+        y_fila1,
+        ancho_bloque,
+        alto_bloque
+    )
+
+    bloque2 = crear_bloque(
+        x_fila1 + ancho_bloque + espacio,
+        y_fila1,
+        ancho_bloque,
+        alto_bloque
+    )
+
+    bloque3 = crear_bloque(
+        x_fila1 + 2 * (ancho_bloque + espacio),
+        y_fila1,
+        ancho_bloque,
+        alto_bloque
+    )
+
+    fila1 = [bloque1, bloque2, bloque3]
+
+    # Conectar la primera fila con la plataforma
+    for bloque in fila1:
+        unir(bloque["abajo_izq"], plataforma_izq)
+        unir(bloque["abajo_der"], plataforma_der)
+
+        # Apoyos más directos hacia abajo
+        punto_apoyo_izq = crear_punto(bloque["abajo_izq"].pos.x, y_plataforma)
+        punto_apoyo_der = crear_punto(bloque["abajo_der"].pos.x, y_plataforma)
+
+        unir(bloque["abajo_izq"], punto_apoyo_izq)
+        unir(bloque["abajo_der"], punto_apoyo_der)
+
+    # ==============================
+    # 4. Segunda fila de bloques
+    # Dos bloques al centro
+    # ==============================
+
+    y_fila2 = y_fila1 - alto_bloque
+
+    ancho_total_fila2 = 2 * ancho_bloque + espacio
+    x_fila2 = x_centro - ancho_total_fila2 / 2
+
+    bloque4 = crear_bloque(
+        x_fila2,
+        y_fila2,
+        ancho_bloque,
+        alto_bloque
+    )
+
+    bloque5 = crear_bloque(
+        x_fila2 + ancho_bloque + espacio,
+        y_fila2,
+        ancho_bloque,
+        alto_bloque
+    )
+
+    fila2 = [bloque4, bloque5]
+
+    # Conectar segunda fila con primera fila
+    unir(bloque4["abajo_izq"], bloque1["arriba_der"])
+    unir(bloque4["abajo_der"], bloque2["arriba_der"])
+
+    unir(bloque5["abajo_izq"], bloque2["arriba_izq"])
+    unir(bloque5["abajo_der"], bloque3["arriba_izq"])
+
+    # Refuerzos diagonales entre niveles
+    unir(bloque4["abajo_izq"], bloque2["arriba_izq"])
+    unir(bloque4["abajo_der"], bloque1["arriba_der"])
+
+    unir(bloque5["abajo_izq"], bloque3["arriba_izq"])
+    unir(bloque5["abajo_der"], bloque2["arriba_der"])
+
+    # ==============================
+    # 5. Bloque superior
+    # Un bloque arriba al centro
+    # ==============================
+
+    y_fila3 = y_fila2 - alto_bloque
+    x_fila3 = x_centro - ancho_bloque / 2
+
+    bloque6 = crear_bloque(
+        x_fila3,
+        y_fila3,
+        ancho_bloque,
+        alto_bloque
+    )
+
+    # Conectar bloque superior con segunda fila
+    unir(bloque6["abajo_izq"], bloque4["arriba_der"])
+    unir(bloque6["abajo_der"], bloque5["arriba_izq"])
+
+    # Refuerzos diagonales del bloque superior
+    unir(bloque6["abajo_izq"], bloque5["arriba_izq"])
+    unir(bloque6["abajo_der"], bloque4["arriba_der"])
+
+    # ==============================
+    # 6. Refuerzos generales entre bloques vecinos
+    # Esto hace que la estructura se parezca más a la imagen
+    # ==============================
+
+    # Unión entre bloques de la primera fila
+    unir(bloque1["arriba_der"], bloque2["arriba_izq"])
+    unir(bloque1["abajo_der"], bloque2["abajo_izq"])
+
+    unir(bloque2["arriba_der"], bloque3["arriba_izq"])
+    unir(bloque2["abajo_der"], bloque3["abajo_izq"])
+
+    # Unión entre bloques de la segunda fila
+    unir(bloque4["arriba_der"], bloque5["arriba_izq"])
+    unir(bloque4["abajo_der"], bloque5["abajo_izq"])
+
 while True:
     reloj.tick(FPS)
     
@@ -148,6 +400,11 @@ while True:
             
             if evento.button == 1:
                 
+                #Evento para click izq y poder llamar la funcion
+                if BOTON_T_INVERTIDA.collidepoint(pos_mouse):
+                    crear_estructura_t_invertida()
+                    continue
+                
                 if (pos_mouse - PUNTO_LANZAMIENTO).length() < 30:
                     arrastrando_disparo = True
                     pos_mouse_disparo = pos_mouse
@@ -160,6 +417,8 @@ while True:
                 
                     if particula_seleccionada is None:
                         particulas.append(Particula(pos_mouse.x, pos_mouse.y))
+            #fin evento button = 1
+            
             
             if evento.button == 3:
                 for p in particulas:
@@ -200,6 +459,12 @@ while True:
     #cilo de eventos cierre
     
     pantalla.fill(NEGRO)
+    
+    #dibujar el boton
+    pygame.draw.rect(pantalla, GRIS, BOTON_T_INVERTIDA)
+    pygame.draw.rect(pantalla, BLANCO, BOTON_T_INVERTIDA, 2)
+    texto_boton = FUENTE.render("Crear T invertida", True, NEGRO)
+    pantalla.blit(texto_boton, (BOTON_T_INVERTIDA.x + 20, BOTON_T_INVERTIDA.y + 8))
     
     # for p in particulas:
     #     p.actualizar()
