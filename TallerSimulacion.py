@@ -23,8 +23,12 @@ ITERACIONES = 5
 
 PUNTO_LANZAMIENTO = pygame.Vector2(100, 450) 
 RADIO_PROYECTIL = 10
-FACTOR_DISPARO = 0.18
+FACTOR_DISPARO = 0.13
 RADIO_IMPACTO = 18
+
+PASOS_PROYECCION = 35
+SALTO_PROYECCION = 2
+RADIO_PUNTO_PROYECCION = 3
 
 pantalla = pygame.display.set_mode((ANCHO, ALTO))
 reloj = pygame.time.Clock()
@@ -64,10 +68,10 @@ class Particula:
     def __init__(self,x,y,fija=False):
         self.pos = pygame.Vector2(x,y)
         self.pos_anterior = pygame.Vector2(x,y)
-        
         self.radio = 6
-        
         self.fija = fija 
+        
+        self.eliminada = False
     
     def actualizar(self):
         if self.fija:
@@ -79,6 +83,9 @@ class Particula:
         self.pos = self.pos + velocidad + pygame.Vector2(0,GRAVEDAD)
     
     def dibujar(self, pantalla):
+        if self.eliminada:
+            return
+        
         if self.fija:
             color = ROJO
         else: 
@@ -386,6 +393,21 @@ def crear_estructura_t_invertida():
     unir(bloque4["arriba_der"], bloque5["arriba_izq"])
     unir(bloque4["abajo_der"], bloque5["abajo_izq"])
 
+
+def calcualr_proyeccion(pos_inicial, velocidad_inicial):
+    puntos = []
+    
+    pos = pygame.Vector2(pos_inicial)
+    vel = pygame.Vector2(velocidad_inicial)
+    
+    for paso in range(PASOS_PROYECCION):
+        vel.y += GRAVEDAD
+        pos += vel 
+        if paso % SALTO_PROYECCION == 0:
+            puntos.append(pos.copy())
+    return puntos 
+
+
 while True:
     reloj.tick(FPS)
     
@@ -426,11 +448,12 @@ while True:
                         p.fija = not p.fija
                         break 
             
-            if evento.type == pygame.MOUSEMOTION:
-                if arrastrando_disparo:
-                    pos_mouse_disparo = pygame.Vector2(pygame.mouse.get_pos()) 
         #fin if de mousebuttondown
         
+        if evento.type == pygame.MOUSEMOTION:
+                if arrastrando_disparo:
+                    pos_mouse_disparo = pygame.Vector2(pygame.mouse.get_pos()) 
+                    
         if evento.type == pygame.MOUSEBUTTONUP:
             
             if evento.button == 1:
@@ -490,13 +513,44 @@ while True:
             distancia = (proyectil.pos - particula.pos).length()
             if distancia < RADIO_IMPACTO:
                 #if not particula.fija:
-                    particulas.remove(particula)
-                    ligaduras = [
+                    #particulas.remove(particula)
+                    particula.eliminada = True
+                    particula.fija = False
+                    '''ligaduras = [
                         l for l in ligaduras
                         if l.p1 != particula and l.p2 != particula
-                    ]
+                    ]'''
                     proyectil.activo = False
                     break
+    
+    #colision contra ligadura
+    for proyectil in proyectiles:
+        if not proyectil.activo:
+            continue
+        
+        for ligadura in ligaduras:
+            A = ligadura.p1.pos 
+            B = ligadura.p2.pos 
+            P = proyectil.pos 
+            
+            AB = B - A 
+            AP = P - A 
+            
+            if AB.length_squared() == 0:
+                continue
+            
+            t = AP.dot(AB) / AB.length_squared()
+            
+            t = max (0, min(1, t))
+            
+            punto_cercano = A + t * AB 
+            distancia = (P - punto_cercano).length()
+            
+            if distancia < RADIO_IMPACTO:
+                ligaduras.remove(ligadura)
+                proyectil.activo = False
+                break
+    
     
     for l in ligaduras:
         l.dibujar(pantalla)
@@ -509,6 +563,23 @@ while True:
     if arrastrando_disparo:
         pygame.draw.line(pantalla, BLANCO, PUNTO_LANZAMIENTO,pos_mouse_disparo, 2)
         pygame.draw.circle(pantalla, BLANCO, pos_mouse_disparo,RADIO_PROYECTIL) 
+        
+        velocidad_previw = (
+            PUNTO_LANZAMIENTO - pos_mouse_disparo
+        ) * FACTOR_DISPARO
+        
+        puntos = calcualr_proyeccion(
+            PUNTO_LANZAMIENTO,
+            velocidad_previw
+        )
+        
+        for punto in puntos:
+            pygame.draw.circle(
+                pantalla,
+                GRIS,
+                (int(punto.x), int(punto.y)),
+                RADIO_PUNTO_PROYECCION
+            )
     
     for proyectil in proyectiles:
         proyectil.dibujar(pantalla)
